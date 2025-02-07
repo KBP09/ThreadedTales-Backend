@@ -45,15 +45,26 @@ export const signup = async (req: Request, res: Response): Promise<any> => {
                 password: hashedPassword,
             }
         });
-        const otp = await sendOtpEmail(email);
-        const newUser = await prisma.user.update({
-            where: {
-                email: email
-            }, data: {
-                otp: otp
-            }
+        const jwtSecret = process.env.JWT_SECRET;
+
+        const expiresIn = process.env.JWT_EXPIRES_IN
+            ? /^\d+$/.test(process.env.JWT_EXPIRES_IN)
+                ? parseInt(process.env.JWT_EXPIRES_IN, 10)
+                : process.env.JWT_EXPIRES_IN
+            : "1h";
+
+        const accessToken = jwt.sign(
+            { id: user.id, email: user.email, name: user.name },
+            jwtSecret as string,
+            { expiresIn: expiresIn as jwt.SignOptions["expiresIn"] }
+        );
+
+        res.status(200).json({
+            user: {
+                user
+            },
+            accessToken: accessToken
         });
-        res.json({ message: 'Signup successful, Please verify your otp' });
     }
     catch (error) {
         res.status(500).json({ error: "Error during signup" });
@@ -117,8 +128,16 @@ export const login = async (req: Request, res: Response): Promise<any> => {
 
     try {
         const user = await prisma.user.findUnique({
-            where: { email: email },
-        })
+            where: { email },
+            include: {
+                stories: {
+                    include: {
+                        likes: true,
+                    },
+                },
+            },
+        });
+
         if (!user) {
             return res.status(400).json({ error: 'Invalid email' });
         }
@@ -130,7 +149,6 @@ export const login = async (req: Request, res: Response): Promise<any> => {
         }
 
         const jwtSecret = process.env.JWT_SECRET;
-
         const expiresIn = process.env.JWT_EXPIRES_IN
             ? /^\d+$/.test(process.env.JWT_EXPIRES_IN)
                 ? parseInt(process.env.JWT_EXPIRES_IN, 10)
@@ -143,15 +161,35 @@ export const login = async (req: Request, res: Response): Promise<any> => {
             { expiresIn: expiresIn as jwt.SignOptions["expiresIn"] }
         );
 
+        // Map stories with total likes for easier processing
+        const storiesWithLikeCount = user.stories.map(story => ({
+            id: story.id,
+            title: story.title,
+            content: story.content,
+            likeCount: story.likes.length,
+            createdAt: story.createdAt,
+            updatedAt: story.updatedAt,
+        }));
 
         res.status(200).json({
             user: {
-                user
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                about: user.about,
+                social: {
+                    twitter: user.twitter,
+                    facebook: user.facebook,
+                    instagram: user.instagram,
+                },
+                createdAt: user.createdAt,
+                updatedAt: user.updatedAt,
             },
-            accessToken: accessToken
+            stories: storiesWithLikeCount,
+            accessToken: accessToken,
         });
+    } catch (error) {
+        console.error("Login Error:", error);
+        res.status(500).json({ error: "Error during login" });
     }
-    catch (error) {
-        res.status(500).json({ error: "Error during login " });
-    }
-}
+};
