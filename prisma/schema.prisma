@@ -8,7 +8,7 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
+  id        String   @id @default(uuid()) @db.Uuid
   name      String
   email     String   @unique
   password  String
@@ -23,11 +23,11 @@ model User {
 }
 
 model Story {
-  id        Int      @id @default(autoincrement())
+  id        String   @id @default(uuid()) @db.Uuid
   title     String
   content   String
   createdBy User     @relation(fields: [userId], references: [id])
-  userId    Int
+  userId    String   @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
