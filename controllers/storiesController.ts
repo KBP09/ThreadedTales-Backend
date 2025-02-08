@@ -6,11 +6,6 @@ export const getStories = async (req: Request, res: Response): Promise<void> => 
         const stories = await prisma.story.findMany({
             where: { parentId: null },
             include: {
-                children: {
-                    include: {
-                        children: true,
-                    },
-                },
                 createdBy: { select: { name: true } },
             },
         });
@@ -29,14 +24,16 @@ export const createStory = async (req: Request, res: Response): Promise<void> =>
             data: {
                 title,
                 content,
-                parentId,
                 createdBy: { connect: { id: userId } },
+                parent: parentId ? { connect: { id: parentId } } : undefined,
             },
         });
 
+
         res.status(201).json(story);
     } catch (error) {
-        res.status(500).json({ error: 'Failed to create story' });
+        console.error("Error creating story:", error);
+        res.status(500).json({ error: "Failed to create story" });
     }
 };
 
@@ -80,7 +77,7 @@ export const toggleLikeStory = async (req: Request, res: Response): Promise<any>
             return res.status(200).json({ message: 'Story unliked' });
         }
 
-        
+
         await prisma.like.create({
             data: {
                 storyId: id,
@@ -93,3 +90,23 @@ export const toggleLikeStory = async (req: Request, res: Response): Promise<any>
         res.status(500).json({ error: 'Failed to toggle like' });
     }
 };
+
+export const getUserStories = async (req: Request, res: Response): Promise<any> => {
+    const { userId } = req.body;
+    try {
+        const stories = await prisma.story.findMany({
+            where: {
+                userId: userId,
+                parentId: null,
+            },
+            include: {
+                createdBy: true,
+                likes: true,
+            },
+        });
+
+        return res.status(200).json(stories);
+    } catch (error) {
+        console.log(error);
+    }
+}
